@@ -369,7 +369,6 @@ export default function App() {
         {!token ? (
           <section className="card login-card">
             <h1>Gas Agency Management</h1>
-            <p className="sub">Node.js + MongoDB edition (React)</p>
             <form className="form-grid" onSubmit={handleLogin}>
               <label>
                 Username
