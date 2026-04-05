@@ -51,6 +51,9 @@ export default function App() {
   const [employeeTab, setEmployeeTab] = useState('orders');
   const [employeeOrders, setEmployeeOrders] = useState([]);
   const [employeeSummary, setEmployeeSummary] = useState({ totalOrders: 0, totalSoldGas: 0, totalRevenue: 0 });
+  const [deliveryPartners, setDeliveryPartners] = useState([]);
+  const [selectedEmployeeOrderId, setSelectedEmployeeOrderId] = useState('');
+  const [selectedPartnerName, setSelectedPartnerName] = useState('');
   const [profileForm, setProfileForm] = useState({ fullName: '', phone: '', defaultAddress: '', currentPassword: '', newPassword: '' });
 
   const [customerView, setCustomerView] = useState('home');
@@ -175,6 +178,32 @@ export default function App() {
     setEmployeeSummary(summary);
   }
 
+  async function loadDeliveryPartners() {
+    const partners = await api('/employee/delivery-partners');
+    setDeliveryPartners(partners);
+    if (!selectedPartnerName && partners.length > 0) {
+      setSelectedPartnerName(partners[0]);
+    }
+  }
+
+  async function assignDeliveryPartner() {
+    if (!selectedEmployeeOrderId) {
+      setToast('Select an order first');
+      return;
+    }
+
+    try {
+      const resp = await api(`/employee/orders/${selectedEmployeeOrderId}/assign-partner`, {
+        method: 'PATCH',
+        body: JSON.stringify({ partnerName: selectedPartnerName || undefined }),
+      });
+      setToast(resp.message || 'Delivery partner assigned');
+      await loadEmployeeData();
+    } catch (err) {
+      setToast(err.message);
+    }
+  }
+
   async function updateProfile(formState, setFormState) {
     try {
       const payload = {
@@ -243,7 +272,7 @@ export default function App() {
     }
 
     if (role === 'EMPLOYEE') {
-      loadEmployeeData().catch((e) => {
+      Promise.all([loadEmployeeData(), loadDeliveryPartners()]).catch((e) => {
         setToast(e.message);
         logout();
       });
@@ -364,10 +393,32 @@ export default function App() {
                 <div className="kpi"><span>Total Sold Gas</span><strong>{employeeSummary.totalSoldGas}</strong></div>
                 <div className="kpi"><span>Total Revenue</span><strong>{formatAmount(employeeSummary.totalRevenue)}</strong></div>
               </div>
+              <div className="inline-controls" style={{ marginBottom: 12 }}>
+                <select value={selectedPartnerName} onChange={(e) => setSelectedPartnerName(e.target.value)}>
+                  {deliveryPartners.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+                <button type="button" onClick={assignDeliveryPartner}>Assign Delivery Partner</button>
+                <button type="button" className="ghost" onClick={() => Promise.all([loadEmployeeData(), loadDeliveryPartners()]).catch((e) => setToast(e.message))}>Refresh</button>
+              </div>
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>Customer</th><th>Address</th><th>Amount</th><th>Status</th><th>Expected</th></tr></thead>
-                  <tbody>{employeeOrders.map((o) => <tr key={o._id}><td>{o.userId?.fullName || o.userId?.username}</td><td>{o.addressLine}, {o.city} - {o.pincode}</td><td>Rs. {formatAmount(o.totalAmount)}</td><td>{o.status}</td><td>{formatDate(o.estimatedDeliveryAt)}</td></tr>)}</tbody>
+                  <thead><tr><th>Customer</th><th>Address</th><th>Amount</th><th>Status</th><th>Partner</th><th>Expected</th></tr></thead>
+                  <tbody>
+                    {employeeOrders.map((o) => (
+                      <tr
+                        key={o._id}
+                        className={selectedEmployeeOrderId === o._id ? 'selected' : ''}
+                        onClick={() => setSelectedEmployeeOrderId(o._id)}
+                      >
+                        <td>{o.userId?.fullName || o.userId?.username}</td>
+                        <td>{o.addressLine}, {o.city} - {o.pincode}</td>
+                        <td>Rs. {formatAmount(o.totalAmount)}</td>
+                        <td>{o.status}</td>
+                        <td>{o.deliveryPartnerName || '-'}</td>
+                        <td>{formatDate(o.estimatedDeliveryAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
                 </table>
               </div>
             </section>

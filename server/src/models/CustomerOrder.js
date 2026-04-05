@@ -20,6 +20,8 @@ const customerOrderSchema = new mongoose.Schema(
     placedAt: { type: Date, default: Date.now, required: true },
     estimatedDeliveryAt: { type: Date, required: true },
     deliveredAt: { type: Date, default: null },
+    deliveryPartnerName: { type: String, default: '', trim: true },
+    deliveryAssignedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
