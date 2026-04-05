@@ -11,6 +11,9 @@ async function connectWithFallback() {
     await connectDB(mongoUri);
     return;
   } catch (err) {
+    if (process.env.NODE_ENV === 'production') {
+      throw err;
+    }
     console.warn(`Primary MongoDB unavailable (${err.message}). Falling back to in-memory MongoDB for local development.`);
   }
 

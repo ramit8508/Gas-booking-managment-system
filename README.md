@@ -11,7 +11,7 @@ This is a web version of your VB6 Gas Agency system with matching modules:
 ## Project Structure
 
 - client: React (Vite) frontend (Vercel-ready)
-- server: Node.js + Express + MongoDB API (Railway-ready)
+- server: Node.js + Express + MongoDB API (Render-ready)
 
 ## 1) Local Run
 
@@ -34,16 +34,17 @@ Default login (auto-seeded on backend startup):
 - Username: admin
 - Password: admin123
 
-## 2) Deploy Backend on Railway
+## 2) Deploy Backend on Render
 
-1. Create new Railway project from server folder/repo.
+1. Create new Web Service in Render from this repository.
+2. Set Root Directory to `server`.
 2. Set environment variables:
-   - PORT=5000
+   - PORT=10000
    - MONGODB_URI=<your mongodb connection string>
    - JWT_SECRET=<strong random secret>
    - FRONTEND_ORIGIN=<your vercel app url>
-3. Railway will run npm install and npm start.
-4. Copy deployed API URL, example: https://gas-booking-api.up.railway.app
+3. Render will run `npm install` and `npm start`.
+4. Copy deployed API URL, example: https://gas-booking-api.onrender.com
 
 Health check endpoint:
 - /api/health
@@ -52,9 +53,9 @@ Health check endpoint:
 
 1. Import client folder/repo into Vercel.
 2. Add environment variable in Vercel project:
-   - VITE_API_BASE_URL=https://your-railway-domain/api
+   - VITE_API_BASE_URL=https://your-render-domain/api
 3. Deploy.
-4. Use frontend URL in Railway FRONTEND_ORIGIN env var.
+4. Use frontend URL in Render FRONTEND_ORIGIN env var.
 
 ## 4) Matching with VB6 Logic
 
