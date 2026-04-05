@@ -321,6 +321,88 @@ tr.selected {
   font-family: 'Space Grotesk', sans-serif;
 }
 
+.company-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.company-card {
+  border: 1px solid rgba(193, 183, 167, 0.7);
+  border-radius: 14px;
+  padding: 14px;
+  background: linear-gradient(160deg, #fffaf0, #f4ecdd);
+}
+
+.company-card h4 {
+  margin: 0 0 6px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 20px;
+}
+
+.company-card p {
+  margin: 0 0 10px;
+  color: var(--ink-soft);
+}
+
+.company-card .price {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.stepper {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.stepper span {
+  display: inline-block;
+  border: 1px solid #d4c8b3;
+  border-radius: 999px;
+  padding: 7px 12px;
+  color: var(--ink-soft);
+  background: #f9f1e3;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.stepper span.on {
+  color: #fff;
+  border-color: transparent;
+  background: linear-gradient(140deg, var(--primary), var(--primary-strong));
+}
+
+.bill-box {
+  border: 1px dashed #c7b9a1;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fffbf4;
+}
+
+.bill-box p {
+  margin: 6px 0;
+}
+
+.order-status {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.order-status.pending {
+  background: #ffe7cb;
+  color: #8a4c12;
+}
+
+.order-status.done {
+  background: #d9f2ec;
+  color: #0d684f;
+}
+
 #toast {
   position: fixed;
   right: 16px;

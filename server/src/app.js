@@ -7,6 +7,9 @@ const authRoutes = require('./routes/auth.routes');
 const customerRoutes = require('./routes/customers.routes');
 const bookingRoutes = require('./routes/bookings.routes');
 const reportRoutes = require('./routes/reports.routes');
+const customerOrdersRoutes = require('./routes/customerOrders.routes');
+const adminRoutes = require('./routes/admin.routes');
+const employeeRoutes = require('./routes/employee.routes');
 
 const app = express();
 
@@ -26,6 +29,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/customer-orders', customerOrdersRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/employee', employeeRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: 'Not found' });

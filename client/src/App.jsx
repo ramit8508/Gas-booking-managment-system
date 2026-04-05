@@ -2,23 +2,18 @@ import { useEffect, useMemo, useState } from 'react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
-function formatDate(value) {
-  if (!value) return '';
-  return new Date(value).toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+const companyProducts = [
+  { key: 'Domestic', title: 'Domestic Cylinder', unitPrice: 1050, desc: 'Household usage, fast refill support.' },
+  { key: 'Commercial', title: 'Commercial Cylinder', unitPrice: 1850, desc: 'Commercial kitchens and business usage.' },
+];
+
+function formatDate(v) {
+  if (!v) return '';
+  return new Date(v).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function formatAmount(value) {
-  return Number(value || 0).toFixed(2);
-}
-
-function firstDayOfMonthISO() {
-  const now = new Date();
-  const first = new Date(now.getFullYear(), now.getMonth(), 1);
-  return first.toISOString().slice(0, 10);
+function formatAmount(v) {
+  return Number(v || 0).toFixed(2);
 }
 
 function todayISO() {
@@ -37,48 +32,33 @@ function printHtml(title, htmlText) {
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token') || '');
   const [username, setUsername] = useState(localStorage.getItem('username') || '');
+  const [role, setRole] = useState(localStorage.getItem('role') || '');
+  const [fullName, setFullName] = useState(localStorage.getItem('fullName') || '');
+
   const [toast, setToast] = useState('');
-  const [activeTab, setActiveTab] = useState('customers');
+  const [loginMode, setLoginMode] = useState('ADMIN');
+  const [showCustomerSignup, setShowCustomerSignup] = useState(false);
 
-  const [loginForm, setLoginForm] = useState({ username: 'admin', password: 'admin123' });
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [signupForm, setSignupForm] = useState({ fullName: '', username: '', phone: '', defaultAddress: '', password: '' });
 
-  const [customerSearch, setCustomerSearch] = useState('');
-  const [customers, setCustomers] = useState([]);
-  const [selectedCustomerId, setSelectedCustomerId] = useState('');
-  const [customerForm, setCustomerForm] = useState({
-    consumerNo: '',
-    fullName: '',
-    addressLine: '',
-    phone: '',
-  });
+  const [adminTab, setAdminTab] = useState('summary');
+  const [adminSummary, setAdminSummary] = useState({ totalOrders: 0, totalSoldGas: 0, totalRevenue: 0, bookedOrders: 0, deliveredOrders: 0, employeeCount: 0 });
+  const [adminOrders, setAdminOrders] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [employeeCreateForm, setEmployeeCreateForm] = useState({ fullName: '', username: '', phone: '', password: '' });
 
-  const [bookingSearch, setBookingSearch] = useState('');
-  const [bookings, setBookings] = useState([]);
-  const [selectedBookingId, setSelectedBookingId] = useState('');
-  const [bookingForm, setBookingForm] = useState({
-    customerId: '',
-    cylinderType: 'Domestic',
-    quantity: 1,
-    billAmount: 0,
-  });
+  const [employeeTab, setEmployeeTab] = useState('orders');
+  const [employeeOrders, setEmployeeOrders] = useState([]);
+  const [employeeSummary, setEmployeeSummary] = useState({ totalOrders: 0, totalSoldGas: 0, totalRevenue: 0 });
+  const [profileForm, setProfileForm] = useState({ fullName: '', phone: '', defaultAddress: '', currentPassword: '', newPassword: '' });
 
-  const [billingSearch, setBillingSearch] = useState('');
-  const [selectedBillingBookingId, setSelectedBillingBookingId] = useState('');
-  const [invoicePreview, setInvoicePreview] = useState('');
-
-  const [fromDate, setFromDate] = useState(firstDayOfMonthISO());
-  const [toDate, setToDate] = useState(todayISO());
-  const [deliveryRows, setDeliveryRows] = useState([]);
-
-  const now = useMemo(() => new Date(), []);
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [year, setYear] = useState(now.getFullYear());
-  const [summary, setSummary] = useState({
-    totalBookings: 0,
-    pendingBookings: 0,
-    deliveredBookings: 0,
-    revenue: 0,
-  });
+  const [customerView, setCustomerView] = useState('home');
+  const [selectedProduct, setSelectedProduct] = useState(companyProducts[0]);
+  const [checkoutStep, setCheckoutStep] = useState(1);
+  const [checkoutForm, setCheckoutForm] = useState({ quantity: 1, addressLine: '', city: '', pincode: '', paymentMethod: 'UPI' });
+  const [myOrders, setMyOrders] = useState([]);
+  const [customerProfileForm, setCustomerProfileForm] = useState({ fullName: '', phone: '', defaultAddress: '', currentPassword: '', newPassword: '' });
 
   useEffect(() => {
     if (!toast) return;
@@ -97,62 +77,38 @@ export default function App() {
       ...options,
       headers: { ...authHeaders, ...(options.headers || {}) },
     });
-
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(data.message || 'Request failed');
-    }
+    if (!res.ok) throw new Error(data.message || 'Request failed');
     return data;
   }
 
-  async function loadCustomers(search = '') {
-    const data = await api(`/customers?search=${encodeURIComponent(search)}`);
-    setCustomers(data);
+  function setSession(data) {
+    setToken(data.token);
+    setUsername(data.username);
+    setRole(data.role);
+    setFullName(data.fullName || '');
+
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('username', data.username);
+    localStorage.setItem('role', data.role);
+    localStorage.setItem('fullName', data.fullName || '');
+
+    setProfileForm((p) => ({ ...p, fullName: data.fullName || '', phone: data.phone || '', defaultAddress: data.defaultAddress || '' }));
+    setCustomerProfileForm((p) => ({ ...p, fullName: data.fullName || '', phone: data.phone || '', defaultAddress: data.defaultAddress || '' }));
   }
-
-  async function loadBookings(search = '') {
-    const data = await api(`/bookings?search=${encodeURIComponent(search)}`);
-    setBookings(data);
-  }
-
-  async function loadDeliveryRegister(customFromDate = fromDate, customToDate = toDate) {
-    const data = await api(`/reports/delivery-register?fromDate=${encodeURIComponent(customFromDate)}&toDate=${encodeURIComponent(customToDate)}`);
-    setDeliveryRows(data);
-  }
-
-  async function loadSummary(customMonth = month, customYear = year) {
-    const data = await api(`/reports/monthly-summary?month=${customMonth}&year=${customYear}`);
-    setSummary(data);
-  }
-
-  async function refreshAll() {
-    await Promise.all([
-      loadCustomers(customerSearch),
-      loadBookings(bookingSearch),
-      loadDeliveryRegister(),
-      loadSummary(),
-    ]);
-  }
-
-  useEffect(() => {
-    if (!token) return;
-
-    refreshAll().catch((err) => {
-      setToast(err.message);
-      logout();
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
 
   function logout() {
     setToken('');
     setUsername('');
+    setRole('');
+    setFullName('');
     localStorage.removeItem('token');
     localStorage.removeItem('username');
-    setSelectedCustomerId('');
-    setSelectedBookingId('');
-    setSelectedBillingBookingId('');
-    setInvoicePreview('');
+    localStorage.removeItem('role');
+    localStorage.removeItem('fullName');
+
+    setLoginForm({ username: '', password: '' });
+    setShowCustomerSignup(false);
   }
 
   async function handleLogin(e) {
@@ -168,432 +124,317 @@ export default function App() {
         return body;
       });
 
-      setToken(data.token);
-      setUsername(data.username);
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('username', data.username);
+      if (data.role !== loginMode) throw new Error(`This account is not ${loginMode.toLowerCase()} role`);
+
+      setSession(data);
       setToast('Login successful');
     } catch (err) {
       setToast(err.message);
     }
   }
 
-  async function addCustomer(e) {
+  async function handleCustomerSignup(e) {
     e.preventDefault();
     try {
-      await api('/customers', {
-        method: 'POST',
-        body: JSON.stringify(customerForm),
-      });
-      setToast('Customer added');
-      await loadCustomers(customerSearch);
+      await api('/auth/customer-register', { method: 'POST', body: JSON.stringify(signupForm) });
+      setToast('Customer account created. Please login.');
+      setShowCustomerSignup(false);
+      setLoginMode('CUSTOMER');
+      setLoginForm({ username: signupForm.username, password: '' });
     } catch (err) {
       setToast(err.message);
     }
   }
 
-  async function updateCustomer() {
-    if (!selectedCustomerId) {
-      setToast('Select a customer first');
-      return;
-    }
-    try {
-      await api(`/customers/${selectedCustomerId}`, {
-        method: 'PUT',
-        body: JSON.stringify(customerForm),
-      });
-      setToast('Customer updated');
-      await loadCustomers(customerSearch);
-    } catch (err) {
-      setToast(err.message);
-    }
+  async function loadAdminData() {
+    const [summary, orders, emps] = await Promise.all([
+      api('/admin/summary'),
+      api('/admin/orders'),
+      api('/admin/employees'),
+    ]);
+    setAdminSummary(summary);
+    setAdminOrders(orders);
+    setEmployees(emps);
   }
 
-  async function deleteCustomer() {
-    if (!selectedCustomerId) {
-      setToast('Select a customer first');
-      return;
-    }
-    if (!window.confirm('Delete selected customer?')) return;
-
-    try {
-      await api(`/customers/${selectedCustomerId}`, { method: 'DELETE' });
-      setSelectedCustomerId('');
-      setCustomerForm({ consumerNo: '', fullName: '', addressLine: '', phone: '' });
-      setToast('Customer deleted');
-      await loadCustomers(customerSearch);
-    } catch (err) {
-      setToast(err.message);
-    }
-  }
-
-  async function createBooking(e) {
+  async function createEmployee(e) {
     e.preventDefault();
     try {
-      await api('/bookings', {
+      await api('/admin/employees', { method: 'POST', body: JSON.stringify(employeeCreateForm) });
+      setToast('Employee created');
+      setEmployeeCreateForm({ fullName: '', username: '', phone: '', password: '' });
+      await loadAdminData();
+    } catch (err) {
+      setToast(err.message);
+    }
+  }
+
+  async function loadEmployeeData() {
+    const [orders, summary] = await Promise.all([api('/employee/orders'), api('/employee/summary')]);
+    setEmployeeOrders(orders);
+    setEmployeeSummary(summary);
+  }
+
+  async function updateProfile(formState, setFormState) {
+    try {
+      const payload = {
+        fullName: formState.fullName,
+        phone: formState.phone,
+        defaultAddress: formState.defaultAddress,
+      };
+      if (formState.newPassword) {
+        payload.currentPassword = formState.currentPassword;
+        payload.newPassword = formState.newPassword;
+      }
+
+      const resp = await api('/auth/me', { method: 'PATCH', body: JSON.stringify(payload) });
+
+      setFullName(resp.user.fullName || '');
+      localStorage.setItem('fullName', resp.user.fullName || '');
+      setFormState((p) => ({ ...p, currentPassword: '', newPassword: '' }));
+      setToast('Profile updated');
+    } catch (err) {
+      setToast(err.message);
+    }
+  }
+
+  async function loadMyOrders() {
+    const data = await api('/customer-orders/mine');
+    setMyOrders(data);
+  }
+
+  async function placeCustomerOrder() {
+    try {
+      if (!checkoutForm.addressLine || !checkoutForm.city || !checkoutForm.pincode) {
+        throw new Error('Please fill complete address');
+      }
+
+      await api('/customer-orders', {
         method: 'POST',
         body: JSON.stringify({
-          customerId: bookingForm.customerId,
-          cylinderType: bookingForm.cylinderType,
-          quantity: Number(bookingForm.quantity),
-          billAmount: Number(bookingForm.billAmount),
+          companyName: 'Gas Agency Management System',
+          cylinderType: selectedProduct.key,
+          quantity: Number(checkoutForm.quantity),
+          addressLine: checkoutForm.addressLine,
+          city: checkoutForm.city,
+          pincode: checkoutForm.pincode,
+          paymentMethod: checkoutForm.paymentMethod,
         }),
       });
 
-      setToast('Booking created');
-      await Promise.all([loadBookings(bookingSearch), loadDeliveryRegister(), loadSummary()]);
+      setToast('Order placed. Your order will be delivered in 2 days.');
+      setCustomerView('orders');
+      setCheckoutStep(1);
+      await loadMyOrders();
     } catch (err) {
       setToast(err.message);
     }
   }
 
-  async function markDelivered() {
-    if (!selectedBookingId) {
-      setToast('Select a booking first');
+  useEffect(() => {
+    if (!token || !role) return;
+
+    if (role === 'ADMIN') {
+      loadAdminData().catch((e) => {
+        setToast(e.message);
+        logout();
+      });
       return;
     }
 
-    try {
-      await api(`/bookings/${selectedBookingId}/deliver`, { method: 'PATCH' });
-      setToast('Booking marked delivered');
-      await Promise.all([loadBookings(bookingSearch), loadDeliveryRegister(), loadSummary()]);
-    } catch (err) {
-      setToast(err.message);
-    }
-  }
-
-  async function loadInvoicePreview(bookingId) {
-    if (!bookingId) {
-      setInvoicePreview('');
-      return;
-    }
-    try {
-      const b = await api(`/bookings/${bookingId}/invoice`);
-      const c = b.customerId || {};
-      let text = '';
-      text += 'GAS AGENCY MANAGEMENT SYSTEM\n';
-      text += 'INVOICE / RECEIPT\n';
-      text += '--------------------------------------------------\n';
-      text += `Booking No: ${b.bookingNo}\n`;
-      text += `Bill No: ${b.billNo}\n`;
-      text += `Booking Date: ${formatDate(b.bookingDate)}\n`;
-      text += `Status: ${b.bookingStatus}\n`;
-      text += `Consumer No: ${c.consumerNo || ''}\n`;
-      text += `Name: ${c.fullName || ''}\n`;
-      text += `Phone: ${c.phone || ''}\n`;
-      text += `Address: ${c.addressLine || ''}\n`;
-      text += `Cylinder: ${b.cylinderType}\n`;
-      text += `Quantity: ${b.quantity}\n`;
-      text += `Bill Amount: Rs. ${formatAmount(b.billAmount)}\n`;
-      if (b.deliveryDate) text += `Delivery Date: ${formatDate(b.deliveryDate)}\\n`;
-      setInvoicePreview(text);
-      return text;
-    } catch (err) {
-      setToast(err.message);
-      return '';
-    }
-  }
-
-  function printInvoice() {
-    if (!invoicePreview.trim()) {
-      setToast('Select an invoice first');
-      return;
-    }
-    printHtml('Invoice', invoicePreview.replace(/\n/g, '<br/>'));
-  }
-
-  function printReceiptFromBooking() {
-    if (!selectedBookingId) {
-      setToast('Select a booking first');
+    if (role === 'EMPLOYEE') {
+      loadEmployeeData().catch((e) => {
+        setToast(e.message);
+        logout();
+      });
       return;
     }
 
-    setActiveTab('billing');
-    setSelectedBillingBookingId(selectedBookingId);
-    loadInvoicePreview(selectedBookingId).then(() => {
-      setTimeout(async () => {
-        const text = await loadInvoicePreview(selectedBookingId);
-        if (text) {
-          printHtml('Invoice', text.replace(/\\n/g, '<br/>'));
-        }
-      }, 150);
-    });
-  }
-
-  async function searchBilling() {
-    try {
-      await loadBookings(billingSearch);
-    } catch (err) {
-      setToast(err.message);
-    }
-  }
-
-  function printDeliveryRegister() {
-    const lines = ['DELIVERY REGISTER', ''];
-    deliveryRows.forEach((r) => {
-      lines.push(`${r.bookingNo} | ${r.customerId?.fullName || ''} | ${r.customerId?.phone || ''} | ${formatDate(r.deliveryDate)} | ${formatAmount(r.billAmount)}`);
-    });
-    printHtml('Delivery Register', lines.join('<br/>'));
-  }
-
-  function printMonthlySummary() {
-    const monthName = new Date(2000, month - 1, 1).toLocaleString('en-US', { month: 'long' });
-    const lines = [
-      'MONTHLY SUMMARY REPORT',
-      `Month: ${monthName} ${year}`,
-      '',
-      `Total Bookings      : ${summary.totalBookings}`,
-      `Booked (Pending)    : ${summary.pendingBookings}`,
-      `Delivered           : ${summary.deliveredBookings}`,
-      `Revenue (Delivered) : Rs. ${formatAmount(summary.revenue)}`,
-    ];
-    printHtml('Monthly Summary', lines.join('<br/>'));
-  }
-
-  const monthOptions = useMemo(() => {
-    const out = [];
-    for (let i = 1; i <= 12; i += 1) {
-      out.push({
-        value: i,
-        label: new Date(2000, i - 1, 1).toLocaleString('en-US', { month: 'long' }),
+    if (role === 'CUSTOMER') {
+      loadMyOrders().catch((e) => {
+        setToast(e.message);
+        logout();
       });
     }
-    return out;
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, role]);
+
+  const bill = useMemo(() => {
+    const subtotal = Number(checkoutForm.quantity || 1) * selectedProduct.unitPrice;
+    const handlingFee = 49;
+    return { subtotal, handlingFee, total: subtotal + handlingFee };
+  }, [checkoutForm.quantity, selectedProduct]);
 
   return (
     <>
       <div className="bg-grid"></div>
-
       <main className="app-shell">
         {!token ? (
           <section className="card login-card">
             <h1>Gas Agency Management</h1>
-            <form className="form-grid" onSubmit={handleLogin}>
-              <label>
-                Username
-                <input
-                  value={loginForm.username}
-                  onChange={(e) => setLoginForm((p) => ({ ...p, username: e.target.value }))}
-                  required
-                />
-              </label>
-              <label>
-                Password
-                <input
-                  type="password"
-                  value={loginForm.password}
-                  onChange={(e) => setLoginForm((p) => ({ ...p, password: e.target.value }))}
-                  required
-                />
-              </label>
-              <button type="submit">Login</button>
-            </form>
-          </section>
-        ) : (
-          <section>
-            <header className="topbar card">
-              <div>
-                <h2>Dashboard</h2>
-                <p className="sub">Logged in as {username}</p>
-              </div>
-              <button className="ghost" onClick={logout}>Logout</button>
-            </header>
+            <p className="sub">Select portal to login</p>
+            <div className="tabs" style={{ marginTop: 10 }}>
+              <button type="button" className={`tab ${loginMode === 'ADMIN' ? 'active' : ''}`} onClick={() => { setLoginMode('ADMIN'); setShowCustomerSignup(false); }}>Admin</button>
+              <button type="button" className={`tab ${loginMode === 'EMPLOYEE' ? 'active' : ''}`} onClick={() => { setLoginMode('EMPLOYEE'); setShowCustomerSignup(false); }}>Employee</button>
+              <button type="button" className={`tab ${loginMode === 'CUSTOMER' ? 'active' : ''}`} onClick={() => setLoginMode('CUSTOMER')}>Customer</button>
+            </div>
 
+            {!showCustomerSignup ? (
+              <form className="form-grid" onSubmit={handleLogin}>
+                <label>Username<input value={loginForm.username} onChange={(e) => setLoginForm((p) => ({ ...p, username: e.target.value }))} required /></label>
+                <label>Password<input type="password" value={loginForm.password} onChange={(e) => setLoginForm((p) => ({ ...p, password: e.target.value }))} required /></label>
+                <button type="submit">Login</button>
+                {loginMode === 'CUSTOMER' ? <button type="button" className="ghost" onClick={() => setShowCustomerSignup(true)}>Create customer account</button> : null}
+              </form>
+            ) : (
+              <form className="form-grid" onSubmit={handleCustomerSignup}>
+                <label>Full Name<input value={signupForm.fullName} onChange={(e) => setSignupForm((p) => ({ ...p, fullName: e.target.value }))} required /></label>
+                <label>Username<input value={signupForm.username} onChange={(e) => setSignupForm((p) => ({ ...p, username: e.target.value }))} required /></label>
+                <label>Phone<input value={signupForm.phone} onChange={(e) => setSignupForm((p) => ({ ...p, phone: e.target.value }))} /></label>
+                <label>Default Address<input value={signupForm.defaultAddress} onChange={(e) => setSignupForm((p) => ({ ...p, defaultAddress: e.target.value }))} /></label>
+                <label>Password<input type="password" value={signupForm.password} onChange={(e) => setSignupForm((p) => ({ ...p, password: e.target.value }))} required /></label>
+                <button type="submit">Sign Up</button>
+                <button type="button" className="ghost" onClick={() => setShowCustomerSignup(false)}>Back</button>
+              </form>
+            )}
+          </section>
+        ) : null}
+
+        {role === 'ADMIN' ? (
+          <section>
+            <header className="topbar card"><div><h2>Admin Portal</h2><p className="sub">{fullName || username}</p></div><button type="button" className="ghost" onClick={logout}>Logout</button></header>
             <nav className="tabs">
-              <button className={`tab ${activeTab === 'customers' ? 'active' : ''}`} onClick={() => setActiveTab('customers')}>Customers</button>
-              <button className={`tab ${activeTab === 'bookings' ? 'active' : ''}`} onClick={() => setActiveTab('bookings')}>Bookings</button>
-              <button className={`tab ${activeTab === 'billing' ? 'active' : ''}`} onClick={() => setActiveTab('billing')}>Billing Report</button>
-              <button className={`tab ${activeTab === 'delivery' ? 'active' : ''}`} onClick={() => setActiveTab('delivery')}>Delivery Register</button>
-              <button className={`tab ${activeTab === 'summary' ? 'active' : ''}`} onClick={() => setActiveTab('summary')}>Monthly Summary</button>
+              <button type="button" className={`tab ${adminTab === 'summary' ? 'active' : ''}`} onClick={() => setAdminTab('summary')}>Summary</button>
+              <button type="button" className={`tab ${adminTab === 'orders' ? 'active' : ''}`} onClick={() => setAdminTab('orders')}>All Orders</button>
+              <button type="button" className={`tab ${adminTab === 'employees' ? 'active' : ''}`} onClick={() => setAdminTab('employees')}>Employees</button>
             </nav>
 
-            <section className={`card tab-panel ${activeTab === 'customers' ? 'active' : ''}`}>
-              <h3>Customer Module</h3>
-              <div className="inline-controls">
-                <input placeholder="Search consumer no or name" value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} />
-                <button onClick={() => loadCustomers(customerSearch).catch((e) => setToast(e.message))}>Search</button>
-                <button className="ghost" onClick={() => loadCustomers('').then(() => setCustomerSearch('')).catch((e) => setToast(e.message))}>Refresh</button>
-              </div>
-
-              <form className="form-grid two-col" onSubmit={addCustomer}>
-                <input placeholder="Consumer No" value={customerForm.consumerNo} onChange={(e) => setCustomerForm((p) => ({ ...p, consumerNo: e.target.value }))} required />
-                <input placeholder="Full Name" value={customerForm.fullName} onChange={(e) => setCustomerForm((p) => ({ ...p, fullName: e.target.value }))} required />
-                <input placeholder="Address" value={customerForm.addressLine} onChange={(e) => setCustomerForm((p) => ({ ...p, addressLine: e.target.value }))} />
-                <input placeholder="Phone" value={customerForm.phone} onChange={(e) => setCustomerForm((p) => ({ ...p, phone: e.target.value }))} />
-                <div className="form-actions wide">
-                  <button type="submit">Add</button>
-                  <button type="button" onClick={updateCustomer}>Update</button>
-                  <button type="button" className="danger" onClick={deleteCustomer}>Delete</button>
-                </div>
-              </form>
-
-              <div className="table-wrap">
-                <table>
-                  <thead><tr><th>Consumer No</th><th>Name</th><th>Phone</th><th>Address</th></tr></thead>
-                  <tbody>
-                    {customers.map((c) => (
-                      <tr
-                        key={c._id}
-                        className={selectedCustomerId === c._id ? 'selected' : ''}
-                        onClick={() => {
-                          setSelectedCustomerId(c._id);
-                          setCustomerForm({
-                            consumerNo: c.consumerNo || '',
-                            fullName: c.fullName || '',
-                            addressLine: c.addressLine || '',
-                            phone: c.phone || '',
-                          });
-                        }}
-                      >
-                        <td>{c.consumerNo}</td>
-                        <td>{c.fullName}</td>
-                        <td>{c.phone || ''}</td>
-                        <td>{c.addressLine || ''}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <section className={`card tab-panel ${activeTab === 'bookings' ? 'active' : ''}`}>
-              <h3>Booking Module</h3>
-              <div className="inline-controls">
-                <input placeholder="Search customer name or booking no" value={bookingSearch} onChange={(e) => setBookingSearch(e.target.value)} />
-                <button onClick={() => loadBookings(bookingSearch).catch((e) => setToast(e.message))}>Search</button>
-                <button className="ghost" onClick={() => loadBookings('').then(() => setBookingSearch('')).catch((e) => setToast(e.message))}>Refresh</button>
-              </div>
-
-              <form className="form-grid two-col" onSubmit={createBooking}>
-                <select value={bookingForm.customerId} onChange={(e) => setBookingForm((p) => ({ ...p, customerId: e.target.value }))} required>
-                  <option value="">Select Customer</option>
-                  {customers.map((c) => (
-                    <option key={c._id} value={c._id}>{c.fullName} ({c.consumerNo})</option>
-                  ))}
-                </select>
-
-                <select value={bookingForm.cylinderType} onChange={(e) => setBookingForm((p) => ({ ...p, cylinderType: e.target.value }))}>
-                  <option value="Domestic">Domestic</option>
-                  <option value="Commercial">Commercial</option>
-                </select>
-
-                <input type="number" min="1" value={bookingForm.quantity} onChange={(e) => setBookingForm((p) => ({ ...p, quantity: e.target.value }))} required />
-                <input type="number" min="0" step="0.01" value={bookingForm.billAmount} onChange={(e) => setBookingForm((p) => ({ ...p, billAmount: e.target.value }))} required />
-
-                <div className="form-actions wide">
-                  <button type="submit">Create Booking</button>
-                  <button type="button" onClick={markDelivered}>Mark Delivered</button>
-                  <button type="button" className="ghost" onClick={printReceiptFromBooking}>Print Receipt</button>
-                </div>
-              </form>
-
-              <div className="table-wrap">
-                <table>
-                  <thead><tr><th>Booking No</th><th>Customer</th><th>Date</th><th>Status</th><th>Amount</th></tr></thead>
-                  <tbody>
-                    {bookings.map((b) => (
-                      <tr key={b._id} className={selectedBookingId === b._id ? 'selected' : ''} onClick={() => setSelectedBookingId(b._id)}>
-                        <td>{b.bookingNo}</td>
-                        <td>{b.customerId?.fullName || ''}</td>
-                        <td>{formatDate(b.bookingDate)}</td>
-                        <td>{b.bookingStatus}</td>
-                        <td>{formatAmount(b.billAmount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <section className={`card tab-panel ${activeTab === 'billing' ? 'active' : ''}`}>
-              <h3>Billing Report</h3>
-              <div className="inline-controls">
-                <input placeholder="Search name or booking no" value={billingSearch} onChange={(e) => setBillingSearch(e.target.value)} />
-                <button onClick={searchBilling}>Search</button>
-                <button className="ghost" onClick={printInvoice}>Print Invoice</button>
-              </div>
-
-              <div className="table-wrap">
-                <table>
-                  <thead><tr><th>Booking No</th><th>Bill No</th><th>Name</th><th>Date</th><th>Amount</th><th>Status</th></tr></thead>
-                  <tbody>
-                    {bookings.map((b) => (
-                      <tr
-                        key={b._id}
-                        className={selectedBillingBookingId === b._id ? 'selected' : ''}
-                        onClick={() => {
-                          setSelectedBillingBookingId(b._id);
-                          loadInvoicePreview(b._id);
-                        }}
-                      >
-                        <td>{b.bookingNo}</td>
-                        <td>{b.billNo}</td>
-                        <td>{b.customerId?.fullName || ''}</td>
-                        <td>{formatDate(b.bookingDate)}</td>
-                        <td>{formatAmount(b.billAmount)}</td>
-                        <td>{b.bookingStatus}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <pre className="preview">{invoicePreview}</pre>
-            </section>
-
-            <section className={`card tab-panel ${activeTab === 'delivery' ? 'active' : ''}`}>
-              <h3>Delivery Register</h3>
-              <div className="inline-controls">
-                <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-                <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-                <button onClick={() => loadDeliveryRegister().catch((e) => setToast(e.message))}>Load</button>
-                <button className="ghost" onClick={printDeliveryRegister}>Print Register</button>
-              </div>
-
-              <div className="table-wrap">
-                <table>
-                  <thead><tr><th>Booking No</th><th>Name</th><th>Phone</th><th>Delivery Date</th><th>Amount</th></tr></thead>
-                  <tbody>
-                    {deliveryRows.map((r) => (
-                      <tr key={r._id}>
-                        <td>{r.bookingNo}</td>
-                        <td>{r.customerId?.fullName || ''}</td>
-                        <td>{r.customerId?.phone || ''}</td>
-                        <td>{formatDate(r.deliveryDate)}</td>
-                        <td>{formatAmount(r.billAmount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <section className={`card tab-panel ${activeTab === 'summary' ? 'active' : ''}`}>
-              <h3>Monthly Summary</h3>
-              <div className="inline-controls">
-                <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
-                  {monthOptions.map((m) => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
-                  ))}
-                </select>
-                <input type="number" min="2000" max="2100" value={year} onChange={(e) => setYear(Number(e.target.value))} />
-                <button onClick={() => loadSummary().catch((e) => setToast(e.message))}>Load Summary</button>
-                <button className="ghost" onClick={printMonthlySummary}>Print Summary</button>
-              </div>
-
+            <section className={`card tab-panel ${adminTab === 'summary' ? 'active' : ''}`}>
+              <h3>Sales Summary</h3>
               <div className="kpis">
-                <div className="kpi"><span>Total Bookings</span><strong>{summary.totalBookings}</strong></div>
-                <div className="kpi"><span>Booked (Pending)</span><strong>{summary.pendingBookings}</strong></div>
-                <div className="kpi"><span>Delivered</span><strong>{summary.deliveredBookings}</strong></div>
-                <div className="kpi"><span>Revenue</span><strong>{formatAmount(summary.revenue)}</strong></div>
+                <div className="kpi"><span>Total Orders</span><strong>{adminSummary.totalOrders}</strong></div>
+                <div className="kpi"><span>Total Sold Gas (Qty)</span><strong>{adminSummary.totalSoldGas}</strong></div>
+                <div className="kpi"><span>Total Revenue</span><strong>{formatAmount(adminSummary.totalRevenue)}</strong></div>
+                <div className="kpi"><span>Employees</span><strong>{adminSummary.employeeCount}</strong></div>
+              </div>
+            </section>
+
+            <section className={`card tab-panel ${adminTab === 'orders' ? 'active' : ''}`}>
+              <h3>All Customer Orders</h3>
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Order No</th><th>Customer</th><th>Address</th><th>Amount</th><th>Qty</th><th>Status</th><th>Expected</th></tr></thead>
+                  <tbody>{adminOrders.map((o) => <tr key={o._id}><td>{o.orderNo}</td><td>{o.userId?.fullName || o.userId?.username}</td><td>{o.addressLine}, {o.city} - {o.pincode}</td><td>Rs. {formatAmount(o.totalAmount)}</td><td>{o.quantity}</td><td>{o.status}</td><td>{formatDate(o.estimatedDeliveryAt)}</td></tr>)}</tbody>
+                </table>
+              </div>
+            </section>
+
+            <section className={`card tab-panel ${adminTab === 'employees' ? 'active' : ''}`}>
+              <h3>Create Employee Login</h3>
+              <form className="form-grid two-col" onSubmit={createEmployee}>
+                <input placeholder="Full Name" value={employeeCreateForm.fullName} onChange={(e) => setEmployeeCreateForm((p) => ({ ...p, fullName: e.target.value }))} required />
+                <input placeholder="Username" value={employeeCreateForm.username} onChange={(e) => setEmployeeCreateForm((p) => ({ ...p, username: e.target.value }))} required />
+                <input placeholder="Phone" value={employeeCreateForm.phone} onChange={(e) => setEmployeeCreateForm((p) => ({ ...p, phone: e.target.value }))} />
+                <input type="password" placeholder="Password" value={employeeCreateForm.password} onChange={(e) => setEmployeeCreateForm((p) => ({ ...p, password: e.target.value }))} required />
+                <div className="form-actions wide"><button type="submit">Create Employee</button></div>
+              </form>
+
+              <div className="table-wrap" style={{ marginTop: 12 }}>
+                <table>
+                  <thead><tr><th>Name</th><th>Username</th><th>Phone</th><th>Created</th></tr></thead>
+                  <tbody>{employees.map((e) => <tr key={e._id}><td>{e.fullName}</td><td>{e.username}</td><td>{e.phone || ''}</td><td>{formatDate(e.createdAt)}</td></tr>)}</tbody>
+                </table>
               </div>
             </section>
           </section>
-        )}
+        ) : null}
+
+        {role === 'EMPLOYEE' ? (
+          <section>
+            <header className="topbar card"><div><h2>Employee Portal</h2><p className="sub">{fullName || username}</p></div><button type="button" className="ghost" onClick={logout}>Logout</button></header>
+            <nav className="tabs">
+              <button type="button" className={`tab ${employeeTab === 'orders' ? 'active' : ''}`} onClick={() => setEmployeeTab('orders')}>Customer Orders</button>
+              <button type="button" className={`tab ${employeeTab === 'profile' ? 'active' : ''}`} onClick={() => setEmployeeTab('profile')}>My Profile</button>
+            </nav>
+
+            <section className={`card tab-panel ${employeeTab === 'orders' ? 'active' : ''}`}>
+              <h3>Customer Orders (Limited View)</h3>
+              <div className="kpis" style={{ marginBottom: 12 }}>
+                <div className="kpi"><span>Total Orders</span><strong>{employeeSummary.totalOrders}</strong></div>
+                <div className="kpi"><span>Total Sold Gas</span><strong>{employeeSummary.totalSoldGas}</strong></div>
+                <div className="kpi"><span>Total Revenue</span><strong>{formatAmount(employeeSummary.totalRevenue)}</strong></div>
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Customer</th><th>Address</th><th>Amount</th><th>Status</th><th>Expected</th></tr></thead>
+                  <tbody>{employeeOrders.map((o) => <tr key={o._id}><td>{o.userId?.fullName || o.userId?.username}</td><td>{o.addressLine}, {o.city} - {o.pincode}</td><td>Rs. {formatAmount(o.totalAmount)}</td><td>{o.status}</td><td>{formatDate(o.estimatedDeliveryAt)}</td></tr>)}</tbody>
+                </table>
+              </div>
+            </section>
+
+            <section className={`card tab-panel ${employeeTab === 'profile' ? 'active' : ''}`}>
+              <h3>Update Profile</h3>
+              <form className="form-grid two-col" onSubmit={(e) => { e.preventDefault(); updateProfile(profileForm, setProfileForm); }}>
+                <input placeholder="Full Name" value={profileForm.fullName} onChange={(e) => setProfileForm((p) => ({ ...p, fullName: e.target.value }))} />
+                <input placeholder="Phone" value={profileForm.phone} onChange={(e) => setProfileForm((p) => ({ ...p, phone: e.target.value }))} />
+                <input className="wide" placeholder="Address" value={profileForm.defaultAddress} onChange={(e) => setProfileForm((p) => ({ ...p, defaultAddress: e.target.value }))} />
+                <input placeholder="Current Password" type="password" value={profileForm.currentPassword} onChange={(e) => setProfileForm((p) => ({ ...p, currentPassword: e.target.value }))} />
+                <input placeholder="New Password" type="password" value={profileForm.newPassword} onChange={(e) => setProfileForm((p) => ({ ...p, newPassword: e.target.value }))} />
+                <div className="form-actions wide"><button type="submit">Save Changes</button></div>
+              </form>
+            </section>
+          </section>
+        ) : null}
+
+        {role === 'CUSTOMER' ? (
+          <section>
+            <header className="topbar card"><div><h2>Customer Portal</h2><p className="sub">{fullName || username}</p></div><button type="button" className="ghost" onClick={logout}>Logout</button></header>
+            <nav className="tabs">
+              <button type="button" className={`tab ${customerView === 'home' ? 'active' : ''}`} onClick={() => setCustomerView('home')}>Gas Company</button>
+              <button type="button" className={`tab ${customerView === 'checkout' ? 'active' : ''}`} onClick={() => setCustomerView('checkout')}>Checkout</button>
+              <button type="button" className={`tab ${customerView === 'orders' ? 'active' : ''}`} onClick={() => { setCustomerView('orders'); loadMyOrders().catch((e) => setToast(e.message)); }}>My Orders</button>
+              <button type="button" className={`tab ${customerView === 'profile' ? 'active' : ''}`} onClick={() => setCustomerView('profile')}>My Profile</button>
+            </nav>
+
+            <section className={`card tab-panel ${customerView === 'home' ? 'active' : ''}`}>
+              <h3>Gas Company</h3>
+              <div className="company-grid">{companyProducts.map((p) => <article key={p.key} className="company-card"><h4>{p.title}</h4><p>{p.desc}</p><p className="price">Rs. {formatAmount(p.unitPrice)}</p><button type="button" onClick={() => { setSelectedProduct(p); setCustomerView('checkout'); setCheckoutStep(1); }}>Book Gas</button></article>)}</div>
+            </section>
+
+            <section className={`card tab-panel ${customerView === 'checkout' ? 'active' : ''}`}>
+              <h3>Checkout</h3>
+              <div className="stepper"><span className={checkoutStep >= 1 ? 'on' : ''}>1. Book Gas</span><span className={checkoutStep >= 2 ? 'on' : ''}>2. Address</span><span className={checkoutStep >= 3 ? 'on' : ''}>3. Billing</span></div>
+
+              {checkoutStep === 1 ? <div className="form-grid two-col"><input value={`${selectedProduct.title} - Rs. ${formatAmount(selectedProduct.unitPrice)}`} readOnly /><input type="number" min="1" value={checkoutForm.quantity} onChange={(e) => setCheckoutForm((p) => ({ ...p, quantity: e.target.value }))} /><div className="form-actions wide"><button type="button" onClick={() => setCheckoutStep(2)}>Continue</button></div></div> : null}
+
+              {checkoutStep === 2 ? <div className="form-grid two-col"><input className="wide" placeholder="Address line" value={checkoutForm.addressLine} onChange={(e) => setCheckoutForm((p) => ({ ...p, addressLine: e.target.value }))} /><input placeholder="City" value={checkoutForm.city} onChange={(e) => setCheckoutForm((p) => ({ ...p, city: e.target.value }))} /><input placeholder="Pincode" value={checkoutForm.pincode} onChange={(e) => setCheckoutForm((p) => ({ ...p, pincode: e.target.value }))} /><div className="form-actions wide"><button type="button" className="ghost" onClick={() => setCheckoutStep(1)}>Back</button><button type="button" onClick={() => setCheckoutStep(3)}>Continue</button></div></div> : null}
+
+              {checkoutStep === 3 ? <div className="form-grid two-col"><select value={checkoutForm.paymentMethod} onChange={(e) => setCheckoutForm((p) => ({ ...p, paymentMethod: e.target.value }))}><option value="UPI">UPI</option><option value="Card">Card</option><option value="Cash On Delivery">Cash On Delivery</option></select><input readOnly value={`BILL-${Date.now()}`} /><div className="wide bill-box"><p><strong>Subtotal:</strong> Rs. {formatAmount(bill.subtotal)}</p><p><strong>Handling:</strong> Rs. {formatAmount(bill.handlingFee)}</p><p><strong>Total:</strong> Rs. {formatAmount(bill.total)}</p><p><strong>Delivery:</strong> Your order will be delivered in 2 days.</p></div><div className="form-actions wide"><button type="button" className="ghost" onClick={() => setCheckoutStep(2)}>Back</button><button type="button" onClick={placeCustomerOrder}>Place Order</button></div></div> : null}
+            </section>
+
+            <section className={`card tab-panel ${customerView === 'orders' ? 'active' : ''}`}>
+              <h3>My Orders</h3>
+              <div className="inline-controls"><button type="button" className="ghost" onClick={() => loadMyOrders().catch((e) => setToast(e.message))}>Refresh Orders</button></div>
+              <div className="table-wrap"><table><thead><tr><th>Order No</th><th>Address</th><th>Amount</th><th>Status</th><th>Expected</th></tr></thead><tbody>{myOrders.map((o) => <tr key={o._id}><td>{o.orderNo}</td><td>{o.addressLine}, {o.city} - {o.pincode}</td><td>Rs. {formatAmount(o.totalAmount)}</td><td><span className={`order-status ${o.status === 'Delivered' ? 'done' : 'pending'}`}>{o.status}</span></td><td>{formatDate(o.estimatedDeliveryAt)}</td></tr>)}</tbody></table></div>
+            </section>
+
+            <section className={`card tab-panel ${customerView === 'profile' ? 'active' : ''}`}>
+              <h3>Update Profile</h3>
+              <form className="form-grid two-col" onSubmit={(e) => { e.preventDefault(); updateProfile(customerProfileForm, setCustomerProfileForm); }}>
+                <input placeholder="Full Name" value={customerProfileForm.fullName} onChange={(e) => setCustomerProfileForm((p) => ({ ...p, fullName: e.target.value }))} />
+                <input placeholder="Phone" value={customerProfileForm.phone} onChange={(e) => setCustomerProfileForm((p) => ({ ...p, phone: e.target.value }))} />
+                <input className="wide" placeholder="Default Address" value={customerProfileForm.defaultAddress} onChange={(e) => setCustomerProfileForm((p) => ({ ...p, defaultAddress: e.target.value }))} />
+                <input placeholder="Current Password" type="password" value={customerProfileForm.currentPassword} onChange={(e) => setCustomerProfileForm((p) => ({ ...p, currentPassword: e.target.value }))} />
+                <input placeholder="New Password" type="password" value={customerProfileForm.newPassword} onChange={(e) => setCustomerProfileForm((p) => ({ ...p, newPassword: e.target.value }))} />
+                <div className="form-actions wide"><button type="submit">Save Changes</button></div>
+              </form>
+            </section>
+          </section>
+        ) : null}
       </main>
 
       <div id="toast" style={{ display: toast ? 'block' : 'none' }}>{toast}</div>
+      <input type="hidden" value={todayISO()} readOnly />
     </>
   );
 }
